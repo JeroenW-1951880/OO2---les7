@@ -44,20 +44,20 @@ public class MethodInvoker {
      * @throws NoSuchMethodException
      * @throws IllegalMethodException when the method is not static and the constructor of the class has parameters
      */
-    private static Method[] input_to_method(String classname, String methodname) throws ClassNotFoundException, NoSuchMethodException, IllegalMethodException {
+    private static ArrayList<Method> input_to_method(String classname, String methodname) throws ClassNotFoundException, NoSuchMethodException, IllegalMethodException {
         Class c = Class.forName(classname);
         Method[] allMethods = c.getDeclaredMethods();
-        Method[] m = {};
+        ArrayList<Method> m = new ArrayList<Method>();
         boolean all_methods_static = true;
         for (Method method : allMethods) {
-            if (method.getName() == methodname && all_params_acceptable(method)) { //weird problem here
-                m[m.length] = method;
+            if (method.getName().equals(methodname) && all_params_acceptable(method)) {
+                m.add(method);
                 if (!Modifier.isStatic(method.getModifiers())) {
                     all_methods_static = false;
                 }
             }
         }
-        if(m.length == 0){ //no methods found
+        if(m.isEmpty()){ //no methods found
             throw new NoSuchMethodException();
         }
         if(!validate_methodchoice(all_methods_static, c)){
@@ -73,11 +73,11 @@ public class MethodInvoker {
      * @return boolean representing the awnser
      */
     private static boolean all_params_acceptable(Method m){
-        for(Type t : m.getGenericParameterTypes()){
-            if (!String.class.isAssignableFrom(t.getClass()) && !Integer.class.isAssignableFrom(t.getClass())){
+        /*for(Type t : m.getParameterTypes()){
+            if (!String.class.getClass().isAssignableFrom(t.getClass()) && !Integer.class.getClass().isAssignableFrom(t.getClass())){
                 return false;
             }
-        }
+        }*/
         return true;
     }
 
@@ -112,7 +112,7 @@ public class MethodInvoker {
      * @return the number of parameters the user has chosen
      * @throws IOException
      */
-    private static int ask_numOfParams(Method[] m) throws IOException, NumberFormatException{
+    private static int ask_numOfParams(ArrayList<Method> m) throws IOException, NumberFormatException{
         ArrayList<Integer> numberoptions = new ArrayList<Integer>();
         for(Method method : m){
             if(!numberoptions.contains(method.getParameterCount())){
@@ -147,7 +147,7 @@ public class MethodInvoker {
      * @return the method with the asked number of parameters
      * @throws NoSuchMethodException when no method is found
      */
-    private static Method get_asked_method(Method[] methods, int paramnum) throws NoSuchMethodException{
+    private static Method get_asked_method(ArrayList<Method> methods, int paramnum) throws NoSuchMethodException{
         for(Method m : methods){
             if(m.getParameterCount() == paramnum){
                 return m;
@@ -163,23 +163,21 @@ public class MethodInvoker {
      * @throws IOException
      * @throws InputMismatchException when the input is unexpected for the type of parameter
      */
-    private static Object[] paraminput(Method m) throws IOException, InputMismatchException{
-        Object[] paramlist = {};
+    private static ArrayList<Object> paraminput(Method m) throws IOException, InputMismatchException{
+        ArrayList<Object> paramlist = new ArrayList<Object>();
         int counter = 0;
         BufferedReader in = new BufferedReader(new InputStreamReader(System.in));
-        for(Type t : m.getGenericParameterTypes()){
+        for(Type t : m.getParameterTypes()){
+            counter++;
             System.out.print("parameter " + counter + " (" + t.getTypeName() + "): ");
             String input = in.readLine();
-            if(String.class.isAssignableFrom(t.getClass())){ //if the parameter requires string-like input
-                if((input.startsWith("'") || input.endsWith("'")) && (input.charAt(0) != '"' || input.charAt(input.length() - 1) != '"')){
-                    throw new InputMismatchException(); //when there are no quotations
-                } else{
-                    paramlist[paramlist.length] = input.substring(1, input.length() - 1);
-                }
-            } else{//if the parameter requires integer-like input
+             //string-like input
+            if((input.startsWith("'") && input.endsWith("'")) || (input.charAt(0) == '"' && input.charAt(input.length() - 1) == '"')){
+                paramlist.add(input.substring(1, input.length() - 1).toCharArray());
+            } else{//integer-like input
                 try{
                     int inp = Integer.parseInt(input);
-                    paramlist[paramlist.length] = inp;
+                    paramlist.add(inp);
                 }catch (NumberFormatException e){ //when no number is entered
                     throw new InputMismatchException();
                 }
@@ -194,12 +192,14 @@ public class MethodInvoker {
      * @param m the selcted method
      * @param c the class of the selected method
      */
-    private static void invoke_method(Object[] argumentlist, Method m, Class c){
-        if(Modifier.isStatic(m.getModifiers())){
+    private static void invoke_method(ArrayList<Object> argumentlist, Method m, Class c){
+        Object[] args = new Object[argumentlist.size()];
+        args = argumentlist.toArray();
+
+        if(/*Modifier.isStatic(m.getModifiers())*/false){
             try{ //if the method is static
-                String printable = (String)m.invoke(argumentlist);
+                System.out.println(m.invoke(args));
                 System.out.println("invoke succesfull");
-                System.out.println(printable);
             } catch (Exception e){
                 System.out.println("invoking method failed");
             }
@@ -207,9 +207,8 @@ public class MethodInvoker {
             try{
                 Object o = c.newInstance(); //first create object to call the method from
                 try {
-                    String printable = (String)m.invoke(o, argumentlist);
+                    System.out.println(m.invoke(o, args));
                     System.out.println("invoke succesfull");
-                    System.out.println(printable);
                 } catch (Exception e){
                     System.out.println("invoking method failed");
                 }
@@ -226,10 +225,10 @@ public class MethodInvoker {
     public static void main(String[] sysargs){
         try{
             String[] names = get_MethodAndClassName();
-            Method[] selected = input_to_method(names[0], names[1]);
+            ArrayList<Method> selected = input_to_method(names[0], names[1]);
             int paramnums = ask_numOfParams(selected);
             Method method = get_asked_method(selected, paramnums);
-            Object[] parameterlist = paraminput(method);
+            ArrayList<Object> parameterlist = paraminput(method);
             Class c = Class.forName(names[0]);
             invoke_method(parameterlist, method, c);
         } catch (IOException e){
